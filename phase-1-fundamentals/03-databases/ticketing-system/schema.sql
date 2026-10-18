@@ -54,7 +54,6 @@ CREATE TABLE "sessions" (
   "createdAt" timestamptz DEFAULT NOW(),
   "updatedAt" timestamptz,
   "deletedAt" timestamptz,
-
   CONSTRAINT "fk_sessions_user" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT
 );
 
@@ -67,9 +66,10 @@ CREATE TABLE "venue" (
   "city" text,
   "state" text,
   "isActive" boolean,
-  "createdAt" timestamptz,
+  "createdAt" timestamptz DEFAULT NOW(),
   "updatedAt" timestamptz,
-  "deletedAt" timestamptz
+  "deletedAt" timestamptz,
+  CONSTRAINT "fk_venue_user" FOREIGN KEY ("ownerId") REFERENCES "users"("id") ON DELETE RESTRICT
 );
 
 CREATE TABLE "venueSeats" (
@@ -79,30 +79,11 @@ CREATE TABLE "venueSeats" (
   "seatingRowNumber" integer,
   "seatType" "seatingCategory",
   "createdBy" uuid NOT NULL,
-  "createdAt" timestamptz,
+  "createdAt" timestamptz DEFAULT NOW(),
   "updatedAt" timestamptz,
-  "deletedAt" timestamptz
-);
-
-CREATE TABLE "eventSeats" (
-  "id" uuid UNIQUE PRIMARY KEY DEFAULT gen_random_uuid(),
-  "eventId" uuid NOT NULL,
-  "seatId" uuid NOT NULL,
-  "status" "seatStatus",
-  "createdAt" timestamptz,
-  "updatedAt" timestamptz,
-  "deletedAt" timestamptz
-);
-
-CREATE TABLE "pricing" (
-  "id" uuid UNIQUE PRIMARY KEY DEFAULT gen_random_uuid(),
-  "eventId" uuid NOT NULL,
-  "seatType" "seatingCategory",
-  "price" decimal(10,2),
-  "createdBy" uuid NOT NULL,
-  "createdAt" timestamptz,
-  "updatedAt" timestamptz,
-  "deletedAt" timestamptz
+  "deletedAt" timestamptz,
+  CONSTRAINT "fk_venueseats_venue" FOREIGN KEY ("venueId") REFERENCES "venue"("id") ON DELETE RESTRICT,
+  CONSTRAINT "fk_venueseats_createdby" FOREIGN KEY ("createdBy") REFERENCES "users"("id") ON DELETE RESTRICT
 );
 
 CREATE TABLE "event" (
@@ -118,9 +99,36 @@ CREATE TABLE "event" (
   "bookingEndTime" timestamptz,
   "totalCapacity" bigint,
   "createdBy" uuid NOT NULL,
+  "createdAt" timestamptz DEFAULT NOW(),
+  "updatedAt" timestamptz,
+  "deletedAt" timestamptz,
+  CONSTRAINT "fk_event_venue" FOREIGN KEY ("venueId") REFERENCES "venue"("id") ON DELETE RESTRICT,
+  CONSTRAINT "fk_event_createdby" FOREIGN KEY ("createdBy") REFERENCES "users"("id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "eventSeats" (
+  "id" uuid UNIQUE PRIMARY KEY DEFAULT gen_random_uuid(),
+  "eventId" uuid NOT NULL,
+  "seatId" uuid NOT NULL,
+  "status" "seatStatus",
   "createdAt" timestamptz,
   "updatedAt" timestamptz,
-  "deletedAt" timestamptz
+  "deletedAt" timestamptz,
+  CONSTRAINT "fk_eventseats_event" FOREIGN KEY ("eventId") REFERENCES "event"("id") ON DELETE RESTRICT,
+  CONSTRAINT "fk_eventseats_seat" FOREIGN KEY ("seatId") REFERENCES "venueSeats"("id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "pricing" (
+  "id" uuid UNIQUE PRIMARY KEY DEFAULT gen_random_uuid(),
+  "eventId" uuid NOT NULL,
+  "seatType" "seatingCategory",
+  "price" decimal(10,2),
+  "createdBy" uuid NOT NULL,
+  "createdAt" timestamptz,
+  "updatedAt" timestamptz,
+  "deletedAt" timestamptz,
+  CONSTRAINT "fk_pricing_event" FOREIGN KEY ("eventId") REFERENCES "event"("id") ON DELETE RESTRICT,
+  CONSTRAINT "fk_pricing_createdby" FOREIGN KEY ("createdBy") REFERENCES "users"("id") ON DELETE RESTRICT
 );
 
 CREATE TABLE "bookings" (
@@ -132,31 +140,8 @@ CREATE TABLE "bookings" (
   "createdBy" uuid NOT NULL,
   "createdAt" timestamptz,
   "updatedAt" timestamptz,
-  "deletedAt" timestamptz
+  "deletedAt" timestamptz,
+  CONSTRAINT "fk_bookings_event" FOREIGN KEY ("eventId") REFERENCES "event"("id") ON DELETE RESTRICT,
+  CONSTRAINT "fk_bookings_eventseat" FOREIGN KEY ("eventSeatId") REFERENCES "eventSeats"("id") ON DELETE RESTRICT,
+  CONSTRAINT "fk_bookings_createdby" FOREIGN KEY ("createdBy") REFERENCES "users"("id") ON DELETE RESTRICT
 );
-
-ALTER TABLE "sessions" ADD FOREIGN KEY ("userId") REFERENCES "users" ("id") DEFERRABLE INITIALLY IMMEDIATE;
-
-ALTER TABLE "venue" ADD FOREIGN KEY ("ownerId") REFERENCES "users" ("id") DEFERRABLE INITIALLY IMMEDIATE;
-
-ALTER TABLE "venueSeats" ADD FOREIGN KEY ("venueId") REFERENCES "venue" ("id") DEFERRABLE INITIALLY IMMEDIATE;
-
-ALTER TABLE "venueSeats" ADD FOREIGN KEY ("createdBy") REFERENCES "users" ("id") DEFERRABLE INITIALLY IMMEDIATE;
-
-ALTER TABLE "eventSeats" ADD FOREIGN KEY ("eventId") REFERENCES "event" ("id") DEFERRABLE INITIALLY IMMEDIATE;
-
-ALTER TABLE "eventSeats" ADD FOREIGN KEY ("seatId") REFERENCES "venueSeats" ("id") DEFERRABLE INITIALLY IMMEDIATE;
-
-ALTER TABLE "pricing" ADD FOREIGN KEY ("eventId") REFERENCES "event" ("id") DEFERRABLE INITIALLY IMMEDIATE;
-
-ALTER TABLE "pricing" ADD FOREIGN KEY ("createdBy") REFERENCES "users" ("id") DEFERRABLE INITIALLY IMMEDIATE;
-
-ALTER TABLE "event" ADD FOREIGN KEY ("venueId") REFERENCES "venue" ("id") DEFERRABLE INITIALLY IMMEDIATE;
-
-ALTER TABLE "event" ADD FOREIGN KEY ("createdBy") REFERENCES "users" ("id") DEFERRABLE INITIALLY IMMEDIATE;
-
-ALTER TABLE "bookings" ADD FOREIGN KEY ("eventId") REFERENCES "event" ("id") DEFERRABLE INITIALLY IMMEDIATE;
-
-ALTER TABLE "bookings" ADD FOREIGN KEY ("eventSeatId") REFERENCES "eventSeats" ("id") DEFERRABLE INITIALLY IMMEDIATE;
-
-ALTER TABLE "bookings" ADD FOREIGN KEY ("createdBy") REFERENCES "users" ("id") DEFERRABLE INITIALLY IMMEDIATE;
