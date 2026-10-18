@@ -34,30 +34,32 @@ CREATE TYPE "eventType" AS ENUM (
 );
 
 CREATE TABLE "users" (
-  "id" uuid UNIQUE PRIMARY KEY,
+  "id" uuid UNIQUE PRIMARY KEY DEFAULT gen_random_uuid(),
   "name" text,
   "email" text,
   "isEmailVerified" boolean,
   "userType" "userType",
   "password" text,
   "isActive" boolean,
-  "createdAt" timestamptz,
+  "createdAt" timestamptz DEFAULT NOW(),
   "updatedAt" timestamptz,
   "deletedAt" timestamptz
 );
 
 CREATE TABLE "sessions" (
-  "id" uuid UNIQUE PRIMARY KEY,
+  "id" uuid UNIQUE PRIMARY KEY DEFAULT gen_random_uuid(),
   "userId" uuid NOT NULL,
   "refreshToken" text UNIQUE,
   "isRevoked" boolean,
-  "createdAt" timestamptz,
+  "createdAt" timestamptz DEFAULT NOW(),
   "updatedAt" timestamptz,
-  "deletedAt" timestamptz
+  "deletedAt" timestamptz,
+
+  CONSTRAINT "fk_sessions_user" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT
 );
 
 CREATE TABLE "venue" (
-  "id" uuid UNIQUE PRIMARY KEY,
+  "id" uuid UNIQUE PRIMARY KEY DEFAULT gen_random_uuid(),
   "name" text,
   "ownerId" uuid NOT NULL,
   "totalSeats" integer,
@@ -71,7 +73,7 @@ CREATE TABLE "venue" (
 );
 
 CREATE TABLE "venueSeats" (
-  "id" uuid UNIQUE PRIMARY KEY,
+  "id" uuid UNIQUE PRIMARY KEY DEFAULT gen_random_uuid(),
   "venueId" uuid NOT NULL,
   "seatingLabel" text,
   "seatingRowNumber" integer,
@@ -83,7 +85,7 @@ CREATE TABLE "venueSeats" (
 );
 
 CREATE TABLE "eventSeats" (
-  "id" uuid UNIQUE PRIMARY KEY,
+  "id" uuid UNIQUE PRIMARY KEY DEFAULT gen_random_uuid(),
   "eventId" uuid NOT NULL,
   "seatId" uuid NOT NULL,
   "status" "seatStatus",
@@ -93,7 +95,7 @@ CREATE TABLE "eventSeats" (
 );
 
 CREATE TABLE "pricing" (
-  "id" uuid UNIQUE PRIMARY KEY,
+  "id" uuid UNIQUE PRIMARY KEY DEFAULT gen_random_uuid(),
   "eventId" uuid NOT NULL,
   "seatType" "seatingCategory",
   "price" decimal(10,2),
@@ -104,7 +106,7 @@ CREATE TABLE "pricing" (
 );
 
 CREATE TABLE "event" (
-  "id" uuid UNIQUE PRIMARY KEY,
+  "id" uuid UNIQUE PRIMARY KEY DEFAULT gen_random_uuid(),
   "name" text,
   "eventType" "eventType",
   "eventStatus" status,
@@ -122,9 +124,9 @@ CREATE TABLE "event" (
 );
 
 CREATE TABLE "bookings" (
-  "id" uuid UNIQUE PRIMARY KEY,
+  "id" uuid UNIQUE PRIMARY KEY DEFAULT gen_random_uuid(),
   "eventId" uuid NOT NULL,
-  "eventSeatId" uuid NOT NULL,
+  "eventSeatId" uuid NOT NULL UNIQUE,
   "bookingStatus" status,
   "pricePaid" decimal(10,2),
   "createdBy" uuid NOT NULL,
