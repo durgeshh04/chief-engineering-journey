@@ -58,7 +58,7 @@ SELECT
   'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'
 FROM generate_series(1, 1000) AS i;
 
--- 5. Link Venue Seats to Main Event
+-- 5. Link venue seats to the main event (all start OPEN)
 INSERT INTO "eventSeats" ("eventId", "seatId", "status")
 SELECT
   'c2eebc99-9c0b-4ef8-bb6d-6bb9bd380a33',
@@ -76,15 +76,30 @@ VALUES
   ('c2eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'PREMIUM', 3000.00, 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'),
   ('c2eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'VIP',     5000.00, 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11');
 
--- 7. Seed 1,000 Confirmed Bookings linked to eventSeats
+-- 7. Book 200 seats: mark them BOOKED and create their CONFIRMED bookings
+--    in one statement, so seat status and bookings can never disagree.
+WITH booked AS (
+  UPDATE "eventSeats"
+  SET "status" = 'BOOKED'::"seatStatus",
+      "updatedAt" = NOW()
+  WHERE "id" IN (
+    SELECT "id" FROM "eventSeats"
+    WHERE "eventId" = 'c2eebc99-9c0b-4ef8-bb6d-6bb9bd380a33'
+    ORDER BY "id"
+    LIMIT 200
+  )
+  RETURNING "id", "eventId", "seatId"
+)
 INSERT INTO "bookings" ("eventId", "eventSeatId", "bookingStatus", "pricePaid", "createdBy")
 SELECT
-  'c2eebc99-9c0b-4ef8-bb6d-6bb9bd380a33',
-  es."id",
+  b."eventId",
+  b."id",
   'CONFIRMED'::"status",
-  500.00,
+  p."price",
   'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'
-FROM "eventSeats" es;
+FROM booked b
+JOIN "venueSeats" vs ON vs."id" = b."seatId"
+JOIN "pricing" p ON p."eventId" = b."eventId" AND p."seatType" = vs."seatType";
 
 -- ======================================================================
 -- 8. LARGE BENCHMARKING DATASET (1,000,000 Rows across 10 Event Hotspots)
