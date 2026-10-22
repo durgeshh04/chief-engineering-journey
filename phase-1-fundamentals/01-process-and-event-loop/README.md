@@ -1,23 +1,20 @@
 # 01 - Process, Execution Context & Event Loop
 
-## What is an Execution Context?
+## Execution Context
 
-When JavaScript runs any code, it creates an Execution Context.
-There are two types:
+When JavaScript runs any code, it creates an Execution Context. There are two types:
 
 - **Global Execution Context** — created once when code starts
 - **Function Execution Context** — created every time a function is called
 
 Each execution context has two phases:
 
-1. **Memory Creation Phase** — variables and functions are stored
-   in memory before any code runs
+1. **Memory Creation Phase** — variables and functions are stored in memory before any code runs
 2. **Execution Phase** — code runs line by line
 
-## What is the Call Stack?
+## Call Stack
 
-The call stack manages execution contexts using LIFO
-(Last In First Out).
+The call stack manages execution contexts using **LIFO** (Last In First Out).
 
 - When a function is called → its context is pushed to the stack
 - When a function finishes → its context is popped off the stack
@@ -26,108 +23,71 @@ The call stack manages execution contexts using LIFO
 ## Microtask Queue vs Macrotask Queue
 
 | Queue | Priority | Contains |
-|-------|----------|----------|
-| Microtask | HIGH - runs first | Promises, async/await |
-| Macrotask | LOW - runs after | setTimeout, setInterval |
+| :--- | :--- | :--- |
+| **Microtask** | HIGH - runs first | Promises, `async/await`, `process.nextTick` |
+| **Macrotask** | LOW - runs after | `setTimeout`, `setInterval`, I/O callbacks |
 
-Event loop always clears the entire microtask queue
-before picking one task from macrotask queue.
+> **Note:** The Event loop always clears the entire microtask queue before picking one task from the macrotask queue.
 
-## What is the Event Loop?
+## The Event Loop
 
-```Event loop has one job — continuously check:
-Is call stack empty?
-YES → take from microtask queue first
-if empty → take from macrotask queue
-push to call stack
-NO  → keep waiting
-It does NOT assign callbacks.
-Node.js APIs and Web APIs handle that part.
-Event loop only moves callbacks to the stack when stack is clear.
-```
-
-## demo.js Output Explained
-
-```javascript
-console.log("1 - Start")        // sync → stack → executes immediately
-setTimeout(() => ..., 0)        // goes to Node API → then macrotask queue
-Promise.resolve().then(...)     // resolved → goes to microtask queue
-console.log("4 - End")          // sync → stack → executes immediately
-// stack now empty
-// event loop checks microtask queue first → Promise runs
-// then checks macrotask queue → setTimeout runs
-```
-
-**Output:**
-1 - Start
-4 - End
-3 - Promise
-2 - setTimeout
-
-## Key Takeaway
-
-JavaScript is single threaded. It can handle async operations
-not by doing multiple things at once — but by knowing what
-to do next using queues and the event loop.
-
-## How the call stack works with the event loop
-
-The call stack executes synchronous code line by line using
-LIFO (Last In First Out). When async code is encountered,
-it is handed off immediately — setTimeout goes to Node API,
-Promises resolve and their .then() callbacks go to the
-microtask queue.
-
-The event loop has one job — continuously check:
+The Event Loop continuously checks:
 
 - Is the call stack empty?
-- If yes → pick from microtask queue first, clear it completely
-- Then pick ONE task from macrotask queue
-- Then check microtask queue again before next macrotask
+  - **YES** → take from microtask queue first (clear completely) → then take one from macrotask queue → push to call stack
+  - **NO** → keep waiting
 
-## Nested Promise behaviour
+It does **NOT** execute callbacks itself or assign them. Node.js APIs and Web APIs handle event monitoring; the Event Loop only moves callbacks to the Call Stack when the stack is empty.
 
-If a Promise callback creates another Promise inside it,
-that new .then() callback goes straight to the microtask
-queue. Since the event loop always clears microtask queue
-completely before touching macrotask queue — the nested
-Promise always executes before any setTimeout callback.
+---
 
-Output order proof:
-1 - Start        → synchronous, executes immediately
-4 - End          → synchronous, executes immediately  
-3 - Promise      → microtask, runs when stack clears
-3.5 - nested     → microtask, created inside microtask,
-                   still runs before macrotask
-2 - setTimeout   → macrotask, runs last always
+## Why Node.js Stays Alive: libuv and the OS
 
-## Promise inside a setTimeout — execution order
+### 1. What Makes a Script Exit and a Server Stay Alive
 
-1. setTimeout hits → goes to Node API →
-   callback moves to macrotask queue
+A Node.js script exits as soon as it has no pending work or active listeners left to wait for. A server stays alive because calling `listen()` creates an active handle that waits for network connections, keeping the process open without consuming CPU cycles.
 
-2. Stack is empty → event loop picks
-   setTimeout callback → pushes to stack
+### 2. Who Does the Waiting: Node or the OS
 
-3. Inside callback:
-   console.log("1-Hello code") → sync →
-   executes immediately ✓
+The Operating System does the actual waiting, not Node.js. Node hands a list of open network sockets to the OS kernel, puts its process thread to sleep, and relies on the kernel to notify it when an event occurs.
 
-   Promise.resolve() → .then() goes to
-   microtask queue (not executed yet)
+### 3. What libuv’s Job Is
 
-   console.log("2-Hello code") → sync →
-   executes immediately ✓
+`libuv` is the C library inside Node.js that bridges JavaScript with the operating system's native I/O interfaces (like `epoll` or `kqueue`). It maintains the active event handle counters, manages I/O polling, and drops triggered callbacks onto the Event Loop queue.
 
-4. setTimeout callback finishes → stack empty
-   Event loop checks microtask queue first
+### 4. Full Request Lifecycle Path
 
-5. Promise .then() runs → prints "3 - Promise"
-   Inside it → new Promise created →
-   goes to microtask queue again
+1. **OS Kernel:** Receives TCP packet on port 3000 and wakes `libuv` from its sleep state.
+2. **libuv:** Reads raw socket bytes and pushes the network event callback to the Event Loop.
+3. **Event Loop:** Detects an empty Call Stack and shifts the callback from the queue to the stack.
+4. **Call Stack / V8:** Executes your JS code, routing the request through NestJS/Express middleware to your controller handler.
 
-6. Stack empty → microtask queue still has
-   something → runs nested Promise
-   Prints "3.5 - nested Promise"
+### 5. What `app.close()` and `SIGTERM` Do
 
-7. Everything empty. Done.
+When Cloud Run or Docker stops a container, it sends a `SIGTERM` signal asking the app to shut down gracefully. Calling `app.close()` stops accepting new traffic, finishes in-flight requests, and closes all active `libuv` handles—allowing the active handle count to drop to zero so Node exits cleanly.
+
+---
+
+## Code Execution Examples & Output Order
+
+### Nested Promise Behavior
+
+If a Promise callback creates another Promise inside it, that new `.then()` callback goes straight to the microtask queue. Since the event loop always clears the microtask queue completely before touching the macrotask queue, the nested Promise always executes before any `setTimeout` callback.
+
+### Execution Order Proof
+
+```javascript
+console.log("1 - Start");
+
+setTimeout(() => {
+  console.log("2 - setTimeout");
+}, 0);
+
+Promise.resolve().then(() => {
+  console.log("3 - Promise");
+  Promise.resolve().then(() => {
+    console.log("3.5 - nested Promise");
+  });
+});
+
+console.log("4 - End");
